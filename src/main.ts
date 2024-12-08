@@ -28,12 +28,12 @@ app.append(mapDiv);
 
 //Insert latitude and longtitude of location into function.
 
-const CARDSHOP = leaflet.latLng(1, 1);
+const CARDSHOP = leaflet.latLng(37.357611933857534, -122.01823257084982);
 
 // Tunable game parameters
 const GAMEPLAY_ZOOM_LEVEL = 19;
 const TILE_DEGREES = 1e-4;
-const NEIGHBORHOOD_SIZE = 8;
+const NEIGHBORHOOD_SIZE = 25;
 const CACHE_SPAWN_PROBABILITY = 0.1;
 
 const map = leaflet.map(document.getElementById("map")!, {
