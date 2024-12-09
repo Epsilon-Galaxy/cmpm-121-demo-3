@@ -164,16 +164,20 @@ function PopupText(cache: Cache): HTMLElement {
   }
   popupText.append(coinsContainer);
 
+  popupText.append(createDepositButton(cache, popupText, coinsContainer));
+  popupText.append(createCollectButton(cache, popupText, coinsContainer));
+  return popupText;
+}
+function createCollectButton(
+  cache: Cache,
+  popupText: HTMLDivElement,
+  coinsContainer: HTMLElement,
+): HTMLButtonElement {
   const collectButton = createButton("Collect", () => {
     if (cache.coins.length > 0) {
       coinInventory.push(cache.coins.pop()!);
-      localStorage.setItem("coinInventory", JSON.stringify(coinInventory));
       playerPoints++;
-      localStorage.setItem("playerPoints", playerPoints.toString());
-      statusPanel.innerHTML = `${playerPoints} points accumulated`;
-      popupText.dispatchEvent(update_cache);
-      momentos[[cache.cell.i, cache.cell.j].toString()] = cache.toMomento();
-      localStorage.setItem("momentos", JSON.stringify(momentos));
+      buttonUpdates(cache, popupText);
 
       coinsContainer.innerHTML = "";
       for (const coin of cache.coins) {
@@ -183,17 +187,19 @@ function PopupText(cache: Cache): HTMLElement {
       }
     }
   });
+  return collectButton;
+}
 
+function createDepositButton(
+  cache: Cache,
+  popupText: HTMLDivElement,
+  coinsContainer: HTMLElement,
+): HTMLButtonElement {
   const depositButton = createButton("Deposit", () => {
     if (coinInventory.length > 0) {
       playerPoints--;
-      localStorage.setItem("playerPoints", playerPoints.toString());
       cache.coins.push(coinInventory.pop()!);
-      localStorage.setItem("coinInventory", JSON.stringify(coinInventory));
-      statusPanel.innerHTML = `${playerPoints} points accumulated`;
-      popupText.dispatchEvent(update_cache);
-      momentos[[cache.cell.i, cache.cell.j].toString()] = cache.toMomento();
-      localStorage.setItem("momentos", JSON.stringify(momentos));
+      buttonUpdates(cache, popupText);
 
       coinsContainer.innerHTML = "";
       for (const coin of cache.coins) {
@@ -204,9 +210,16 @@ function PopupText(cache: Cache): HTMLElement {
     }
   });
 
-  popupText.append(depositButton);
-  popupText.append(collectButton);
-  return popupText;
+  return depositButton;
+}
+
+function buttonUpdates(cache: Cache, popupText: HTMLDivElement) {
+  localStorage.setItem("coinInventory", JSON.stringify(coinInventory));
+  localStorage.setItem("playerPoints", playerPoints.toString());
+  statusPanel.innerHTML = `${playerPoints} points accumulated`;
+  popupText.dispatchEvent(update_cache);
+  momentos[[cache.cell.i, cache.cell.j].toString()] = cache.toMomento();
+  localStorage.setItem("momentos", JSON.stringify(momentos));
 }
 
 // Function used to create buttons in the popup
