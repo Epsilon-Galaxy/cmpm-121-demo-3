@@ -30,12 +30,13 @@ app.append(mapDiv);
 
 const CARDSHOP = leaflet.latLng(37.357611933857534, -122.01823257084982);
 
-// Tunable game parameters
+// Game Parameters
 const GAMEPLAY_ZOOM_LEVEL = 19;
 const TILE_DEGREES = 1e-4;
 const NEIGHBORHOOD_SIZE = 25;
 const CACHE_SPAWN_PROBABILITY = 0.1;
 
+// Map creation using parameters
 const map = leaflet.map(document.getElementById("map")!, {
   center: CARDSHOP,
   zoom: GAMEPLAY_ZOOM_LEVEL,
@@ -53,7 +54,7 @@ leaflet
   })
   .addTo(map);
 
-//Player marker
+//Player marker -- Marks the player's location and creates a tooltip
 const playerMarker = leaflet.marker(CARDSHOP);
 playerMarker.bindTooltip("That's you!");
 playerMarker.addTo(map);
@@ -63,6 +64,7 @@ let playerPoints = 0;
 const statusPanel = document.querySelector<HTMLDivElement>("#statusPanel")!;
 statusPanel.innerHTML = "No Points Yet...";
 
+// Spawns a cache at the desired location
 function spawnCache(i: number, j: number) {
   const origin = CARDSHOP;
   const bounds = leaflet.latLngBounds([
@@ -96,16 +98,16 @@ function spawnCache(i: number, j: number) {
   });
 }
 
-//look around the neighborhood for caches to spawn
+//Goes through the neighbor grid and sees if a tile would spawn based on the tile's luck with the luck module
 for (let i = -NEIGHBORHOOD_SIZE; i < NEIGHBORHOOD_SIZE; i++) {
   for (let j = -NEIGHBORHOOD_SIZE; j < NEIGHBORHOOD_SIZE; j++) {
-    // If location i,j is lucky enough spawn a cache
     if (luck([i, j].toString()) < CACHE_SPAWN_PROBABILITY) {
       spawnCache(i, j);
     }
   }
 }
 
+//test Button for testing purposes
 const testButton = document.createElement("button");
 testButton.innerHTML = "TESTBUTTON";
 testButton.style.backgroundColor = "white";
