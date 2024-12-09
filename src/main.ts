@@ -70,9 +70,12 @@ interface Cache {
   cell: Cell;
 }
 
-//
+//event to update cache
 const update_cache: Event = new Event("cacheChanged");
 
+// Initializes a cache at position i, j with a randomized
+// amouint of unique coins as a list using the interfaces for
+// both objects
 function createCache(i: number, j: number): Cache {
   const cache: Cache = {
     cell: { i: i, j: j },
@@ -91,6 +94,9 @@ function createCache(i: number, j: number): Cache {
   return cache;
 }
 
+// PopupText handles the text popup representing collecting and depoiting
+// Of unique coins at each cache as well as displays each unique coin
+// As a vertical list in the popup.
 function PopupText(cache: Cache): HTMLElement {
   const popupText = document.createElement("div");
   popupText.innerHTML =
@@ -140,6 +146,7 @@ function PopupText(cache: Cache): HTMLElement {
   return popupText;
 }
 
+// Function used to create buttons in the popup
 function createButton(
   text: string,
   eventHandler: () => void,
@@ -179,7 +186,8 @@ let playerPoints = 0;
 const statusPanel = document.querySelector<HTMLDivElement>("#statusPanel")!;
 statusPanel.innerHTML = "No Points Yet...";
 
-// Spawns a cache at the desired location
+// Spawns a cache at the desired location and sets up popup interaction
+// For each cache that is spawned
 function spawnCache(cache: Cache) {
   const rect = leaflet.rectangle([
     [cache.cell.i * TILE_DEGREES, cache.cell.j * TILE_DEGREES],
@@ -207,6 +215,8 @@ for (
     j++
   ) {
     if (luck([i, j].toString()) < CACHE_SPAWN_PROBABILITY) {
+      // If a cache ends up being created it will spawn
+      // a created cache at location [i, j]
       spawnCache(createCache(i, j));
     }
   }
