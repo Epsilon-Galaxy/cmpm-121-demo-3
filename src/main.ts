@@ -15,7 +15,7 @@ import _viteConfig from "../vite.config.js";
 // Game Parameters
 const GAMEPLAY_ZOOM_LEVEL = 19;
 const TILE_DEGREES = 1e-4;
-const NEIGHBORHOOD_SIZE = 25;
+const NEIGHBORHOOD_SIZE = 50;
 const CACHE_SPAWN_PROBABILITY = 0.1;
 
 //Reference to app div elemnt
@@ -43,6 +43,8 @@ const _NULL_ISLAND_COORDINATES = {
 
 const CARDSHOP = leaflet.latLng(37.357611933857534, -122.01823257084982);
 
+let tempMarker: leaflet.LatLng = CARDSHOP;
+
 // ORIGINS FROM STARTPOINT
 
 const originLAT = Math.floor(CARDSHOP.lat / TILE_DEGREES);
@@ -50,6 +52,8 @@ const originLNG = Math.floor(CARDSHOP.lng / TILE_DEGREES);
 
 const _cacheList: Cache[] = [];
 const coinInventory: Coin[] = [];
+
+const momentos: { [key: string]: string } = {};
 
 // Interfaces for caches and cache components
 interface Coin {
@@ -65,9 +69,12 @@ interface Cell {
 }
 
 // Using the flyweight pattern holds objects rather than holding everything in the object
+// Using the momento pattern to preserve its state through dissapearance and appearance
 interface Cache {
   coins: Coin[];
   cell: Cell;
+  toMomento(): string;
+  fromMomento(momento: string): void;
 }
 
 //event to update cache
@@ -80,6 +87,12 @@ function createCache(i: number, j: number): Cache {
   const cache: Cache = {
     cell: { i: i, j: j },
     coins: [],
+    toMomento() {
+      return JSON.stringify(this.coins);
+    },
+    fromMomento(momento: string) {
+      this.coins = JSON.parse(momento);
+    },
   };
   const numCoins = Math.floor(luck([i + j].toString()) * 10);
 
@@ -90,6 +103,9 @@ function createCache(i: number, j: number): Cache {
       description: `SerialCoinNum_${i}_${j}_${count}`,
     });
   }
+
+  //sets a dictionary pair of the location of a cache and its momento
+  momentos[[i, j].toString()] = cache.toMomento();
 
   return cache;
 }
@@ -176,6 +192,8 @@ leaflet
   })
   .addTo(map);
 
+const cacheLayer: leaflet.LayerGroup = leaflet.layerGroup().addTo(map);
+
 //Player marker -- Marks the player's location and creates a tooltip
 const playerMarker = leaflet.marker(CARDSHOP);
 playerMarker.bindTooltip("That's you!");
@@ -220,4 +238,55 @@ for (
       spawnCache(createCache(i, j));
     }
   }
+}
+
+function _visibleCaches(cache: Cache) {
+  const rect = leaflet.rectangle([[
+    cache.cell.i * TILE_DEGREES,
+    cache.cell.j * TILE_DEGREES,
+  ], [(cache.cell.i + 1) * TILE_DEGREES, (cache.cell.j + 1) * TILE_DEGREES]]);
+  rect.addTo(map);
+  cacheLayer.addLayer(rect);
+
+  addEventListener(`cache_changed_${cache.cell.i}_${cache.cell.j}`, () => {
+    rect.setPopupContent(PopupText(cache));
+  });
+  rect.addEventListener("click", () => {
+    rect.bindPopup(PopupText(cache)).openPopup();
+  });
+}
+
+const tempDiv: HTMLElement = document.createElement("div");
+const tempDiv2: HTMLElement = document.createElement("div");
+
+const moveUpButton = createButton("⬆️", () => {
+  tempMarker = leaflet.latLng(tempMarker.lat + TILE_DEGREES, tempMarker.lng);
+  playerMarker.setLatLng(tempMarker);
+  resetView();
+});
+
+app.append(moveUpButton);
+app.append(tempDiv);
+const moveLeftButton = createButton("⬅️", () => {
+  tempMarker = leaflet.latLng(tempMarker.lat, tempMarker.lng - TILE_DEGREES);
+  playerMarker.setLatLng(tempMarker);
+  resetView();
+});
+app.append(moveLeftButton);
+const moveRightButton = createButton("➡️", () => {
+  tempMarker = leaflet.latLng(tempMarker.lat, tempMarker.lng + TILE_DEGREES);
+  playerMarker.setLatLng(tempMarker);
+  resetView();
+});
+app.append(moveRightButton);
+app.append(tempDiv2);
+const moveDownButton = createButton("⬇️", () => {
+  tempMarker = leaflet.latLng(tempMarker.lat - TILE_DEGREES, tempMarker.lng);
+  playerMarker.setLatLng(tempMarker);
+  resetView();
+});
+app.append(moveDownButton);
+
+function resetView() {
+  map.setView(tempMarker, GAMEPLAY_ZOOM_LEVEL);
 }
