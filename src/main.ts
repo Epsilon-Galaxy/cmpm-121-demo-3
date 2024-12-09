@@ -15,11 +15,38 @@ import _viteConfig from "../vite.config.js";
 // Game Parameters
 const GAMEPLAY_ZOOM_LEVEL = 19;
 const TILE_DEGREES = 1e-4;
-const NEIGHBORHOOD_SIZE = 50;
+const NEIGHBORHOOD_SIZE = 10;
 const CACHE_SPAWN_PROBABILITY = 0.1;
 
 //Reference to app div elemnt
 const app: HTMLDivElement = document.querySelector<HTMLDivElement>("#app")!;
+
+const enableLocation = createButton("🌐", () => {
+  if ("geolocation" in navigator) {
+    navigator.geolocation.watchPosition((position) => {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      const newLoc: Cell = { i: lat, j: lng };
+      tempMarker = leaflet.latLng([newLoc.i, newLoc.j]);
+      playerMarker.setLatLng(tempMarker);
+      resetView();
+      populateArea(
+        Math.floor(lat / TILE_DEGREES),
+        Math.floor(lng / TILE_DEGREES),
+      );
+    });
+  }
+});
+app.append(enableLocation);
+
+const resetData = createButton("🚮", () => {
+  const sign = prompt("Are you sure you want to reset? Type yes");
+  if (sign == "yes") {
+    localStorage.clear();
+    location.reload();
+  }
+});
+app.append(resetData);
 
 const controlPanelDiv = document.createElement("div");
 controlPanelDiv.id = "controlPanel";
@@ -51,10 +78,17 @@ const originLAT = Math.floor(CARDSHOP.lat / TILE_DEGREES);
 const originLNG = Math.floor(CARDSHOP.lng / TILE_DEGREES);
 
 const _cacheList: Cache[] = [];
-const coinInventory: Coin[] = [];
+let coinInventory: Coin[] = [];
 
-const momentos: { [key: string]: string } = {};
+if (localStorage.getItem("coinInventory")) {
+  coinInventory = JSON.parse(localStorage.getItem("coinInventory")!);
+}
 
+let momentos: { [key: string]: string } = {};
+if (localStorage.getItem("momentos")) {
+  momentos = JSON.parse(localStorage.getItem("momentos")!);
+  console.log(momentos);
+}
 // Interfaces for caches and cache components
 interface Coin {
   serialized: string;
@@ -96,16 +130,21 @@ function createCache(i: number, j: number): Cache {
   };
   const numCoins = Math.floor(luck([i + j].toString()) * 10);
 
-  for (let count = 0; count < numCoins; count++) {
-    cache.coins.push({
-      serialized: `SerialCoinNum_${i}_${j}_${count}`,
-      cell: cache.cell,
-      description: `SerialCoinNum_${i}_${j}_${count}`,
-    });
+  if ([i, j].toString() in momentos) {
+    cache.fromMomento(momentos[[i, j].toString()]);
+  } else {
+    for (let count = 0; count < numCoins; count++) {
+      cache.coins.push({
+        serialized: `SerialCoinNum_${i}_${j}_${count}`,
+        cell: cache.cell,
+        description: `SerialCoinNum_${i}_${j}_${count}`,
+      });
+    }
   }
 
   //sets a dictionary pair of the location of a cache and its momento
   momentos[[i, j].toString()] = cache.toMomento();
+  localStorage.setItem("momentos", JSON.stringify(momentos));
 
   return cache;
 }
@@ -128,9 +167,13 @@ function PopupText(cache: Cache): HTMLElement {
   const collectButton = createButton("Collect", () => {
     if (cache.coins.length > 0) {
       coinInventory.push(cache.coins.pop()!);
+      localStorage.setItem("coinInventory", JSON.stringify(coinInventory));
       playerPoints++;
+      localStorage.setItem("playerPoints", playerPoints.toString());
       statusPanel.innerHTML = `${playerPoints} points accumulated`;
       popupText.dispatchEvent(update_cache);
+      momentos[[cache.cell.i, cache.cell.j].toString()] = cache.toMomento();
+      localStorage.setItem("momentos", JSON.stringify(momentos));
 
       coinsContainer.innerHTML = "";
       for (const coin of cache.coins) {
@@ -144,9 +187,13 @@ function PopupText(cache: Cache): HTMLElement {
   const depositButton = createButton("Deposit", () => {
     if (coinInventory.length > 0) {
       playerPoints--;
+      localStorage.setItem("playerPoints", playerPoints.toString());
       cache.coins.push(coinInventory.pop()!);
+      localStorage.setItem("coinInventory", JSON.stringify(coinInventory));
       statusPanel.innerHTML = `${playerPoints} points accumulated`;
       popupText.dispatchEvent(update_cache);
+      momentos[[cache.cell.i, cache.cell.j].toString()] = cache.toMomento();
+      localStorage.setItem("momentos", JSON.stringify(momentos));
 
       coinsContainer.innerHTML = "";
       for (const coin of cache.coins) {
@@ -199,10 +246,18 @@ const playerMarker = leaflet.marker(CARDSHOP);
 playerMarker.bindTooltip("That's you!");
 playerMarker.addTo(map);
 
+// movement
+
 // display player points
-let playerPoints = 0;
+
+let playerPoints = parseInt(localStorage.getItem("playerPoints")!) || 0;
 const statusPanel = document.querySelector<HTMLDivElement>("#statusPanel")!;
-statusPanel.innerHTML = "No Points Yet...";
+
+if (playerPoints > 0) {
+  statusPanel.innerHTML = `${playerPoints} points accumulated`;
+} else {
+  statusPanel.innerHTML = "No Points Yet...";
+}
 
 // Spawns a cache at the desired location and sets up popup interaction
 // For each cache that is spawned
@@ -240,6 +295,26 @@ for (
   }
 }
 
+function populateArea(lat: number, lng: number) {
+  for (
+    let i = lat - NEIGHBORHOOD_SIZE;
+    i < lat + NEIGHBORHOOD_SIZE;
+    i++
+  ) {
+    for (
+      let j = lng - NEIGHBORHOOD_SIZE;
+      j < lng + NEIGHBORHOOD_SIZE;
+      j++
+    ) {
+      if (luck([i, j].toString()) < CACHE_SPAWN_PROBABILITY) {
+        // If a cache ends up being created it will spawn
+        // a created cache at location [i, j]
+        spawnCache(createCache(i, j));
+      }
+    }
+  }
+}
+
 function _visibleCaches(cache: Cache) {
   const rect = leaflet.rectangle([[
     cache.cell.i * TILE_DEGREES,
@@ -263,20 +338,31 @@ const moveUpButton = createButton("⬆️", () => {
   tempMarker = leaflet.latLng(tempMarker.lat + TILE_DEGREES, tempMarker.lng);
   playerMarker.setLatLng(tempMarker);
   resetView();
+  localStorage.setItem("tempMarker", JSON.stringify(tempMarker));
+  movement.push(playerMarker.getLatLng());
+  updatePolyLine(movement);
+  localStorage.setItem("movement", JSON.stringify(movement));
 });
-
 app.append(moveUpButton);
 app.append(tempDiv);
 const moveLeftButton = createButton("⬅️", () => {
   tempMarker = leaflet.latLng(tempMarker.lat, tempMarker.lng - TILE_DEGREES);
   playerMarker.setLatLng(tempMarker);
   resetView();
+  localStorage.setItem("tempMarker", JSON.stringify(tempMarker));
+  movement.push(playerMarker.getLatLng());
+  updatePolyLine(movement);
+  localStorage.setItem("movement", JSON.stringify(movement));
 });
 app.append(moveLeftButton);
 const moveRightButton = createButton("➡️", () => {
   tempMarker = leaflet.latLng(tempMarker.lat, tempMarker.lng + TILE_DEGREES);
   playerMarker.setLatLng(tempMarker);
   resetView();
+  localStorage.setItem("tempMarker", JSON.stringify(tempMarker));
+  movement.push(playerMarker.getLatLng());
+  updatePolyLine(movement);
+  localStorage.setItem("movement", JSON.stringify(movement));
 });
 app.append(moveRightButton);
 app.append(tempDiv2);
@@ -284,9 +370,30 @@ const moveDownButton = createButton("⬇️", () => {
   tempMarker = leaflet.latLng(tempMarker.lat - TILE_DEGREES, tempMarker.lng);
   playerMarker.setLatLng(tempMarker);
   resetView();
+  localStorage.setItem("tempMarker", JSON.stringify(tempMarker));
+  movement.push(playerMarker.getLatLng());
+  updatePolyLine(movement);
+  localStorage.setItem("movement", JSON.stringify(movement));
 });
 app.append(moveDownButton);
 
 function resetView() {
   map.setView(tempMarker, GAMEPLAY_ZOOM_LEVEL);
+}
+
+if (localStorage.getItem("tempMarker")) {
+  tempMarker = JSON.parse(localStorage.getItem("tempMarker")!);
+  playerMarker.setLatLng(tempMarker);
+  resetView();
+}
+
+let movement: leaflet.LatLng[] = [playerMarker.getLatLng()];
+if (localStorage.getItem("movement")) {
+  movement = JSON.parse(localStorage.getItem("movement")!);
+}
+
+const polyLine = leaflet.polyline(movement, { color: "red" }).addTo(map);
+updatePolyLine(movement);
+function updatePolyLine(pastMovement: leaflet.LatLng[]) {
+  polyLine.setLatLngs(pastMovement);
 }
